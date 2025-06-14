@@ -71,10 +71,17 @@ class TranslationScreen extends ConsumerWidget {
               child: Column(
                 children: [
                   Text(
-                    '正在下載翻譯模型...',
+                    '正在下載翻譯模型... ${(translationState.downloadProgress * 100).toStringAsFixed(1)}%',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 14.sp,
+                    ),
+                  ),
+                  Text(
+                    '初始化狀態: ${translationState.isInitialized ? "完成" : "進行中"}',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12.sp,
                     ),
                   ),
                   SizedBox(height: 8.h),

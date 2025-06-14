@@ -86,6 +86,11 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
           state = state.copyWith(downloadProgress: progress);
           print(
               'Translation download progress: ${(progress * 100).toStringAsFixed(1)}%');
+
+          // 確保UI更新
+          if (progress >= 1.0) {
+            print('Download completed - UI should update now');
+          }
         });
 
         // Try normal initialization first, then skip download if it hangs
@@ -108,13 +113,18 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
       });
 
       // Update initialization state
+      final allInitialized = _audioService.isInitialized &&
+          _translationService.isInitialized &&
+          _ttsService.isInitialized;
+
       state = state.copyWith(
-        isInitialized: _audioService.isInitialized &&
-            _translationService.isInitialized &&
-            _ttsService.isInitialized,
+        isInitialized: allInitialized,
+        downloadProgress:
+            allInitialized ? 1.0 : state.downloadProgress, // 確保初始化完成時進度為100%
       );
 
-      print('All services initialized: ${state.isInitialized}');
+      print('All services initialized: $allInitialized');
+      print('Final download progress: ${state.downloadProgress}');
     } catch (e) {
       print('Error initializing services: $e');
     }

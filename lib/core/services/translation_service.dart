@@ -128,9 +128,13 @@ class TranslationService {
       // 如果所有模型都已下載，直接設置進度為100%
       if (isChineseDownloaded && isJapaneseDownloaded && isEnglishDownloaded) {
         _modelsDownloaded = true;
+        // 確保進度設置為100%並立即發送
+        _downloadProgressController?.add(1.0);
+        // 再次確保發送，以防第一次沒有被UI接收到
+        await Future.delayed(Duration(milliseconds: 100));
         _downloadProgressController?.add(1.0);
         if (kDebugMode) {
-          print('All models already downloaded');
+          print('All models already downloaded - progress set to 100%');
         }
         return;
       }
