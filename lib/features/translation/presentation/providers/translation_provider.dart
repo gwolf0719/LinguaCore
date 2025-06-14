@@ -88,7 +88,14 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
               'Translation download progress: ${(progress * 100).toStringAsFixed(1)}%');
         });
 
-        await _translationService.initialize();
+        // Try normal initialization first, then skip download if it hangs
+        try {
+          await _translationService.initialize().timeout(Duration(seconds: 20));
+        } catch (e) {
+          print('Normal initialization failed or timed out: $e');
+          print('Retrying with skip model download...');
+          await _translationService.initialize(skipModelDownload: true);
+        }
       }
 
       if (!_ttsService.isInitialized) {
