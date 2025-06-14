@@ -1,0 +1,45 @@
+name: lingua_core
+description: A Flutter offline real-time voice translation app
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management
+  flutter_riverpod: ^2.4.9
+  
+  # ML Kit
+  google_mlkit_translation: ^0.11.0
+  google_mlkit_speech_to_text: ^0.11.0
+  
+  # Audio
+  flutter_tts: ^3.8.5
+  speech_to_text: ^6.6.0
+  record: ^5.0.4
+  audio_session: ^0.1.18
+  
+  # Permissions
+  permission_handler: ^11.1.0
+  
+  # UI
+  flutter_screenutil: ^5.9.0
+  
+  # Utils
+  get_it: ^7.6.4
+  logger: ^2.0.2+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
