@@ -131,9 +131,16 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
   }
 
   Future<void> _handleSpeechResult(String recognizedText) async {
-    if (recognizedText.isEmpty) return;
+    if (recognizedText.isEmpty) {
+      print('Received empty speech result');
+      return;
+    }
 
+    print('Received speech result: "$recognizedText"');
     final languageSettings = _ref.read(languageSettingsProvider);
+    print(
+        'Current language settings: native=${languageSettings.nativeLanguage.code}, target=${languageSettings.targetLanguage.code}');
+    print('Current role: ${state.currentRole}');
 
     state = state.copyWith(
       currentText: recognizedText,
