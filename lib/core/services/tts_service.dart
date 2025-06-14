@@ -105,6 +105,24 @@ class TTSService {
     }
   }
 
+  Future<void> speakJapanese(String text) async {
+    if (!_isInitialized || text.trim().isEmpty) return;
+    
+    try {
+      await _flutterTts.setLanguage("ja-JP");
+      await _flutterTts.setSpeechRate(0.8);
+      await _flutterTts.speak(text);
+      
+      if (kDebugMode) {
+        print('Speaking Japanese: $text');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error speaking Japanese: $e');
+      }
+    }
+  }
+
   Future<void> stop() async {
     if (!_isSpeaking) return;
     

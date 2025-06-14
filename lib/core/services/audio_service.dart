@@ -1,23 +1,22 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:audio_session/audio_session.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
 class AudioService {
   final SpeechToText _speechToText = SpeechToText();
   final AudioRecorder _audioRecorder = AudioRecorder();
-  
+
   StreamController<String>? _speechResultController;
   StreamController<bool>? _listeningController;
-  
+
   bool _isInitialized = false;
   bool _isListening = false;
-  
+
   Stream<String> get speechResults => _speechResultController!.stream;
   Stream<bool> get listeningStatus => _listeningController!.stream;
-  
+
   bool get isListening => _isListening;
   bool get isInitialized => _isInitialized;
 
@@ -25,19 +24,16 @@ class AudioService {
     try {
       _speechResultController = StreamController<String>.broadcast();
       _listeningController = StreamController<bool>.broadcast();
-      
+
       // Request permissions
       await _requestPermissions();
-      
-      // Configure audio session
-      await _configureAudioSession();
-      
+
       // Initialize speech to text
       _isInitialized = await _speechToText.initialize(
         onError: _onSpeechError,
         onStatus: _onSpeechStatus,
       );
-      
+
       if (kDebugMode) {
         print('AudioService initialized: $_isInitialized');
       }
@@ -53,11 +49,6 @@ class AudioService {
     if (micPermission != PermissionStatus.granted) {
       throw Exception('Microphone permission not granted');
     }
-  }
-
-  Future<void> _configureAudioSession() async {
-    final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.speech());
   }
 
   Future<void> startListening({
@@ -76,10 +67,10 @@ class AudioService {
         listenFor: const Duration(seconds: 30),
         pauseFor: const Duration(seconds: 3),
       );
-      
+
       _isListening = true;
       _listeningController?.add(true);
-      
+
       if (kDebugMode) {
         print('Started listening...');
       }
@@ -97,7 +88,7 @@ class AudioService {
       await _speechToText.stop();
       _isListening = false;
       _listeningController?.add(false);
-      
+
       if (kDebugMode) {
         print('Stopped listening');
       }
@@ -111,7 +102,7 @@ class AudioService {
   void _onSpeechResult(result) {
     if (result.recognizedWords.isNotEmpty) {
       _speechResultController?.add(result.recognizedWords);
-      
+
       if (kDebugMode) {
         print('Speech result: ${result.recognizedWords}');
       }
@@ -130,17 +121,21 @@ class AudioService {
     if (kDebugMode) {
       print('Speech status: $status');
     }
-    
+
     if (status == 'done' || status == 'notListening') {
       _isListening = false;
       _listeningController?.add(false);
     }
   }
 
-  List<String> get availableLocales {
-    return _speechToText.locales
-        .map((locale) => locale.localeId)
-        .toList();
+  Future<List<String>> get availableLocales async {
+    if (!_isInitialized) return ['en-US', 'zh-CN'];
+    try {
+      final locales = await _speechToText.locales();
+      return locales.map((locale) => locale.localeId).toList();
+    } catch (e) {
+      return ['en-US', 'zh-CN']; // 預設支援的語言
+    }
   }
 
   void dispose() {

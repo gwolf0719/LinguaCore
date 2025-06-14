@@ -19,55 +19,14 @@ class LanguageSettings {
       targetLanguage: targetLanguage ?? this.targetLanguage,
     );
   }
-}
-
-class LanguageSettingsNotifier extends StateNotifier<LanguageSettings> {
-  LanguageSettingsNotifier()
-      : super(
-          LanguageSettings(
-            nativeLanguage: SupportedLanguages.getLanguage('zh-CN'),
-            targetLanguage: SupportedLanguages.getLanguage('en-US'),
-          ),
-        );
-
-  void setNativeLanguage(LanguageModel language) {
-    if (language.code == state.targetLanguage.code) {
-      // 如果選擇的母語和目標語言相同，則交換它們
-      state = state.copyWith(
-        nativeLanguage: language,
-        targetLanguage: state.nativeLanguage,
-      );
-    } else {
-      state = state.copyWith(nativeLanguage: language);
-    }
-  }
-
-  void setTargetLanguage(LanguageModel language) {
-    if (language.code == state.nativeLanguage.code) {
-      // 如果選擇的目標語言和母語相同，則交換它們
-      state = state.copyWith(
-        targetLanguage: language,
-        nativeLanguage: state.targetLanguage,
-      );
-    } else {
-      state = state.copyWith(targetLanguage: language);
-    }
-  }
-
-  void swapLanguages() {
-    state = state.copyWith(
-      nativeLanguage: state.targetLanguage,
-      targetLanguage: state.nativeLanguage,
-    );
-  }
 
   // 獲取語音識別的 locale ID
   String get nativeLocaleId {
-    return _convertToLocaleId(state.nativeLanguage.code);
+    return _convertToLocaleId(nativeLanguage.code);
   }
 
   String get targetLocaleId {
-    return _convertToLocaleId(state.targetLanguage.code);
+    return _convertToLocaleId(targetLanguage.code);
   }
 
   // 轉換為 ML Kit 支援的語言代碼
@@ -106,6 +65,47 @@ class LanguageSettingsNotifier extends StateNotifier<LanguageSettings> {
       default:
         return 'en-US';
     }
+  }
+}
+
+class LanguageSettingsNotifier extends StateNotifier<LanguageSettings> {
+  LanguageSettingsNotifier()
+      : super(
+          LanguageSettings(
+            nativeLanguage: SupportedLanguages.getLanguage('zh-TW'),
+            targetLanguage: SupportedLanguages.getLanguage('ja-JP'),
+          ),
+        );
+
+  void setNativeLanguage(LanguageModel language) {
+    if (language.code == state.targetLanguage.code) {
+      // 如果選擇的母語和目標語言相同，則交換它們
+      state = state.copyWith(
+        nativeLanguage: language,
+        targetLanguage: state.nativeLanguage,
+      );
+    } else {
+      state = state.copyWith(nativeLanguage: language);
+    }
+  }
+
+  void setTargetLanguage(LanguageModel language) {
+    if (language.code == state.nativeLanguage.code) {
+      // 如果選擇的目標語言和母語相同，則交換它們
+      state = state.copyWith(
+        targetLanguage: language,
+        nativeLanguage: state.targetLanguage,
+      );
+    } else {
+      state = state.copyWith(targetLanguage: language);
+    }
+  }
+
+  void swapLanguages() {
+    state = state.copyWith(
+      nativeLanguage: state.targetLanguage,
+      targetLanguage: state.nativeLanguage,
+    );
   }
 }
 
