@@ -112,6 +112,17 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
         _handleSpeechResult(text);
       });
 
+      // Listen to speech recognition status for auto-retry
+      _audioService.listeningStatus.listen((isListening) {
+        print('Speech listening status changed: $isListening');
+        if (!isListening && state.mode == TranslationMode.listening) {
+          // 如果正在聽取模式但語音識別停止了，嘗試重新開始
+          print(
+              'Speech recognition stopped unexpectedly, attempting restart...');
+          _restartListening();
+        }
+      });
+
       // Update initialization state
       final allInitialized = _audioService.isInitialized &&
           _translationService.isInitialized &&
@@ -136,10 +147,11 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
       return;
     }
 
-    print('Received speech result: "$recognizedText"');
+    print('=== SPEECH RECOGNITION RESULT ===');
+    print('Recognized text: "$recognizedText"');
     final languageSettings = _ref.read(languageSettingsProvider);
     print(
-        'Current language settings: native=${languageSettings.nativeLanguage.code}, target=${languageSettings.targetLanguage.code}');
+        'Language settings: native=${languageSettings.nativeLanguage.name} (${languageSettings.nativeLanguage.code}), target=${languageSettings.targetLanguage.name} (${languageSettings.targetLanguage.code})');
     print('Current role: ${state.currentRole}');
 
     state = state.copyWith(
@@ -152,10 +164,17 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
     // Translate based on current role and language settings
     if (state.currentRole == ConversationRole.other) {
       // Other person speaking -> translate to user's native language
+      print(
+          'Translating from ${languageSettings.targetLanguage.name} to ${languageSettings.nativeLanguage.name}');
+      print(
+          'Translation: "${recognizedText}" (${languageSettings.targetLanguage.code}) -> ${languageSettings.nativeLanguage.code}');
+
       translatedText = await _translateText(
           recognizedText,
           languageSettings.targetLanguage.code,
           languageSettings.nativeLanguage.code);
+
+      print('Translation result: "$translatedText"');
 
       // Speak in user's native language
       state = state.copyWith(
@@ -163,13 +182,22 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
         mode: TranslationMode.speaking,
       );
 
+      print(
+          'Speaking translation in ${languageSettings.nativeLanguage.name}...');
       await _speakText(translatedText, languageSettings.nativeLanguage.code);
     } else {
       // User speaking -> translate to target language
+      print(
+          'Translating from ${languageSettings.nativeLanguage.name} to ${languageSettings.targetLanguage.name}');
+      print(
+          'Translation: "${recognizedText}" (${languageSettings.nativeLanguage.code}) -> ${languageSettings.targetLanguage.code}');
+
       translatedText = await _translateText(
           recognizedText,
           languageSettings.nativeLanguage.code,
           languageSettings.targetLanguage.code);
+
+      print('Translation result: "$translatedText"');
 
       // Speak in target language
       state = state.copyWith(
@@ -177,6 +205,8 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
         mode: TranslationMode.speaking,
       );
 
+      print(
+          'Speaking translation in ${languageSettings.targetLanguage.name}...');
       await _speakText(translatedText, languageSettings.targetLanguage.code);
     }
 
@@ -192,12 +222,24 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
       conversationHistory: [...state.conversationHistory, newItem],
       mode: TranslationMode.idle,
     );
+
+    print('=== TRANSLATION COMPLETE ===');
   }
 
   Future<void> startListeningForOther() async {
-    if (!state.isInitialized) return;
+    if (!state.isInitialized) {
+      print('Services not initialized yet, cannot start listening');
+      return;
+    }
 
     final languageSettings = _ref.read(languageSettingsProvider);
+    print('Starting to listen for OTHER person...');
+    print(
+        'Language settings: native=${languageSettings.nativeLanguage.name} (${languageSettings.nativeLanguage.code}), target=${languageSettings.targetLanguage.name} (${languageSettings.targetLanguage.code})');
+    print(
+        'Will listen in: ${languageSettings.targetLanguage.name} (${languageSettings.targetLocaleId})');
+    print(
+        'Will translate to: ${languageSettings.nativeLanguage.name} (${languageSettings.nativeLanguage.code})');
 
     state = state.copyWith(
       currentRole: ConversationRole.other,
@@ -209,11 +251,14 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
     // Stop any current TTS
     await _ttsService.stop();
 
-    // Start listening for target language
+    // Start listening for target language (should be Japanese)
     await _audioService.startListening(
       localeId: languageSettings.targetLocaleId,
       partialResults: true,
     );
+
+    print(
+        'Started listening for ${languageSettings.targetLanguage.name} speech...');
   }
 
   Future<void> startListeningForUser() async {
@@ -278,6 +323,29 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
     } else {
       // For other languages, try to speak in English as fallback
       await _ttsService.speakEnglish(text);
+    }
+  }
+
+  // 重新開始監聽的輔助方法
+  Future<void> _restartListening() async {
+    await Future.delayed(const Duration(seconds: 3)); // 等待3秒再重試
+
+    if (state.mode == TranslationMode.listening) {
+      final languageSettings = _ref.read(languageSettingsProvider);
+      String targetLocale;
+
+      if (state.currentRole == ConversationRole.other) {
+        targetLocale = languageSettings.targetLocaleId;
+        print('Restarting listening for OTHER role with locale: $targetLocale');
+      } else {
+        targetLocale = languageSettings.nativeLocaleId;
+        print('Restarting listening for USER role with locale: $targetLocale');
+      }
+
+      await _audioService.startListening(
+        localeId: targetLocale,
+        partialResults: true,
+      );
     }
   }
 

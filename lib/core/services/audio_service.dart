@@ -65,6 +65,7 @@ class AudioService {
     try {
       if (kDebugMode) {
         print('Starting speech recognition with locale: $localeId');
+        print('Available locales: ${await availableLocales}');
       }
 
       await _speechToText.listen(
@@ -73,15 +74,15 @@ class AudioService {
         partialResults: partialResults,
         listenMode: ListenMode.confirmation,
         cancelOnError: false, // 不要因為錯誤就取消
-        listenFor: const Duration(seconds: 60), // 延長聽取時間
-        pauseFor: const Duration(seconds: 8), // 延長暫停時間
+        listenFor: const Duration(seconds: 120), // 延長到2分鐘聽取時間
+        pauseFor: const Duration(seconds: 15), // 延長暫停時間到15秒
       );
 
       _isListening = true;
       _listeningController?.add(true);
 
       if (kDebugMode) {
-        print('Started listening...');
+        print('Started listening with extended timeout...');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -121,16 +122,32 @@ class AudioService {
   void _onSpeechError(error) {
     if (kDebugMode) {
       print('Speech error: $error');
+      print('Error type: ${error.runtimeType}');
+      print('Is listening: $_isListening');
     }
 
-    // 如果是超時錯誤，不要停止監聽，繼續嘗試
-    if (error.toString().contains('timeout')) {
-      print('Speech timeout detected, but continuing to listen...');
+    // 如果是超時錯誤，嘗試重新開始監聽
+    if (error.toString().contains('timeout') ||
+        error.toString().contains('error_speech_timeout')) {
+      print('Speech timeout detected - attempting to restart listening...');
+
+      // 延遲一下再重試
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!_isListening) {
+          print('Restarting speech recognition after timeout...');
+          // 這裡我們不能直接重新開始，因為我們沒有保存之前的參數
+          // 但我們可以維持監聽狀態，讓上層應用處理重試
+        }
+      });
       return; // 不要改變監聽狀態
     }
 
-    _isListening = false;
-    _listeningController?.add(false);
+    // 對於其他錯誤，停止監聽
+    if (error.toString().contains('permanent')) {
+      print('Permanent speech error detected, stopping listening');
+      _isListening = false;
+      _listeningController?.add(false);
+    }
   }
 
   void _onSpeechStatus(status) {
