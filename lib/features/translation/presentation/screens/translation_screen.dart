@@ -102,6 +102,8 @@ class TranslationScreen extends ConsumerWidget {
             currentRole: translationState.currentRole,
             currentText: translationState.currentText,
             translatedText: translationState.translatedText,
+            statusMessage: translationState.statusMessage,
+            soundLevel: translationState.soundLevel,
           ),
 
           // Conversation display

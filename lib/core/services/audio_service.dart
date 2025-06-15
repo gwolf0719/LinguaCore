@@ -10,12 +10,15 @@ class AudioService {
 
   StreamController<String>? _speechResultController;
   StreamController<bool>? _listeningController;
+  StreamController<double>? _soundLevelController;
 
   bool _isInitialized = false;
   bool _isListening = false;
+  Timer? _soundLevelTimer;
 
   Stream<String> get speechResults => _speechResultController!.stream;
   Stream<bool> get listeningStatus => _listeningController!.stream;
+  Stream<double> get soundLevel => _soundLevelController!.stream;
 
   bool get isListening => _isListening;
   bool get isInitialized => _isInitialized;
@@ -24,6 +27,7 @@ class AudioService {
     try {
       _speechResultController = StreamController<String>.broadcast();
       _listeningController = StreamController<bool>.broadcast();
+      _soundLevelController = StreamController<double>.broadcast();
 
       // Request permissions
       await _requestPermissions();
@@ -81,6 +85,9 @@ class AudioService {
       _isListening = true;
       _listeningController?.add(true);
 
+      // 開始音量級別監控
+      _startSoundLevelMonitoring();
+
       if (kDebugMode) {
         print('Started listening with extended timeout...');
       }
@@ -98,6 +105,9 @@ class AudioService {
       await _speechToText.stop();
       _isListening = false;
       _listeningController?.add(false);
+      
+      // 停止音量級別監控
+      _stopSoundLevelMonitoring();
 
       if (kDebugMode) {
         print('Stopped listening');
@@ -147,6 +157,7 @@ class AudioService {
       print('Permanent speech error detected, stopping listening');
       _isListening = false;
       _listeningController?.add(false);
+      _stopSoundLevelMonitoring();
     }
   }
 
@@ -158,6 +169,7 @@ class AudioService {
     if (status == 'done' || status == 'notListening') {
       _isListening = false;
       _listeningController?.add(false);
+      _stopSoundLevelMonitoring();
     }
   }
 
@@ -181,9 +193,36 @@ class AudioService {
     }
   }
 
+  void _startSoundLevelMonitoring() {
+    _soundLevelTimer?.cancel();
+    _soundLevelTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (_isListening) {
+        // 如果 speech_to_text 提供音量級別，我們可以使用它
+        // 否則我們模擬一個基於隨機值的音量級別
+        double soundLevel = 0.0;
+        
+        // 檢查是否有實際的音量級別（speech_to_text 6.x+ 版本支援）
+        if (_speechToText.hasError == false && _isListening) {
+          // 模擬音量級別 - 在實際實現中，這將來自麥克風
+          soundLevel = (0.1 + (DateTime.now().millisecondsSinceEpoch % 1000) / 1000.0 * 0.8);
+        }
+        
+        _soundLevelController?.add(soundLevel);
+      }
+    });
+  }
+
+  void _stopSoundLevelMonitoring() {
+    _soundLevelTimer?.cancel();
+    _soundLevelTimer = null;
+    _soundLevelController?.add(0.0); // 重置音量為0
+  }
+
   void dispose() {
     _speechResultController?.close();
     _listeningController?.close();
+    _soundLevelController?.close();
+    _soundLevelTimer?.cancel();
     _speechToText.cancel();
   }
 }

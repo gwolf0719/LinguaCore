@@ -7,44 +7,58 @@ import '../../../settings/presentation/providers/language_settings_provider.dart
 
 enum TranslationMode { listening, translating, speaking, idle }
 
+enum TranslationSubState { speechRecognized, translating, translated, speaking }
+
 enum ConversationRole { user, other }
 
 class TranslationState {
   final TranslationMode mode;
+  final TranslationSubState? subState;
   final ConversationRole currentRole;
   final String currentText;
   final String translatedText;
   final bool isInitialized;
   final double downloadProgress;
   final List<ConversationItem> conversationHistory;
+  final String statusMessage;
+  final double soundLevel;
 
   const TranslationState({
     this.mode = TranslationMode.idle,
+    this.subState,
     this.currentRole = ConversationRole.other,
     this.currentText = '',
     this.translatedText = '',
     this.isInitialized = false,
     this.downloadProgress = 0.0,
     this.conversationHistory = const [],
+    this.statusMessage = '',
+    this.soundLevel = 0.0,
   });
 
   TranslationState copyWith({
     TranslationMode? mode,
+    TranslationSubState? subState,
     ConversationRole? currentRole,
     String? currentText,
     String? translatedText,
     bool? isInitialized,
     double? downloadProgress,
     List<ConversationItem>? conversationHistory,
+    String? statusMessage,
+    double? soundLevel,
   }) {
     return TranslationState(
       mode: mode ?? this.mode,
+      subState: subState ?? this.subState,
       currentRole: currentRole ?? this.currentRole,
       currentText: currentText ?? this.currentText,
       translatedText: translatedText ?? this.translatedText,
       isInitialized: isInitialized ?? this.isInitialized,
       downloadProgress: downloadProgress ?? this.downloadProgress,
       conversationHistory: conversationHistory ?? this.conversationHistory,
+      statusMessage: statusMessage ?? this.statusMessage,
+      soundLevel: soundLevel ?? this.soundLevel,
     );
   }
 }
@@ -112,6 +126,11 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
         _handleSpeechResult(text);
       });
 
+      // Listen to sound level changes
+      _audioService.soundLevel.listen((level) {
+        state = state.copyWith(soundLevel: level);
+      });
+
       // Listen to speech recognition status for auto-retry
       _audioService.listeningStatus.listen((isListening) {
         print('Speech listening status changed: $isListening');
@@ -154,63 +173,72 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
         'Language settings: native=${languageSettings.nativeLanguage.name} (${languageSettings.nativeLanguage.code}), target=${languageSettings.targetLanguage.name} (${languageSettings.targetLanguage.code})');
     print('Current role: ${state.currentRole}');
 
+    // 步驟1: 顯示語音識別結果
+    String currentSourceLanguage;
+    String sourceLanguageCode;
+
+    if (state.currentRole == ConversationRole.other) {
+      // 對方說話 -> 翻譯成中文
+      currentSourceLanguage = languageSettings.targetLanguage.name;
+      sourceLanguageCode = languageSettings.targetLanguage.code;
+    } else {
+      // 用戶說話 -> 翻譯成中文
+      currentSourceLanguage = languageSettings.nativeLanguage.name;
+      sourceLanguageCode = languageSettings.nativeLanguage.code;
+    }
+
     state = state.copyWith(
       currentText: recognizedText,
       mode: TranslationMode.translating,
+      subState: TranslationSubState.speechRecognized,
+      statusMessage: '✅ 已識別$currentSourceLanguage: "$recognizedText"',
+    );
+
+    // 延遲一下讓用戶看到識別結果
+    await Future.delayed(Duration(milliseconds: 500));
+
+    // 步驟2: 開始翻譯
+    state = state.copyWith(
+      subState: TranslationSubState.translating,
+      statusMessage: '🔄 正在翻譯中...',
     );
 
     String translatedText;
+    String targetLanguage;
+    String targetLanguageCode;
 
-    // Translate based on current role and language settings
-    if (state.currentRole == ConversationRole.other) {
-      // Other person speaking -> translate to user's native language
-      print(
-          'Translating from ${languageSettings.targetLanguage.name} to ${languageSettings.nativeLanguage.name}');
-      print(
-          'Translation: "${recognizedText}" (${languageSettings.targetLanguage.code}) -> ${languageSettings.nativeLanguage.code}');
+    // 統一翻譯成中文（根據用戶需求）
+    targetLanguage = '中文';
+    targetLanguageCode = 'zh';
 
-      translatedText = await _translateText(
-          recognizedText,
-          languageSettings.targetLanguage.code,
-          languageSettings.nativeLanguage.code);
+    print('Translating from $currentSourceLanguage to Chinese');
 
-      print('Translation result: "$translatedText"');
+    translatedText =
+        await _translateText(recognizedText, sourceLanguageCode, 'zh');
 
-      // Speak in user's native language
-      state = state.copyWith(
-        translatedText: translatedText,
-        mode: TranslationMode.speaking,
-      );
+    print('Translation result: "$translatedText"');
 
-      print(
-          'Speaking translation in ${languageSettings.nativeLanguage.name}...');
-      await _speakText(translatedText, languageSettings.nativeLanguage.code);
-    } else {
-      // User speaking -> translate to target language
-      print(
-          'Translating from ${languageSettings.nativeLanguage.name} to ${languageSettings.targetLanguage.name}');
-      print(
-          'Translation: "${recognizedText}" (${languageSettings.nativeLanguage.code}) -> ${languageSettings.targetLanguage.code}');
+    // 步驟3: 顯示翻譯結果
+    state = state.copyWith(
+      translatedText: translatedText,
+      subState: TranslationSubState.translated,
+      statusMessage: '✅ $targetLanguage翻譯: "$translatedText"',
+    );
 
-      translatedText = await _translateText(
-          recognizedText,
-          languageSettings.nativeLanguage.code,
-          languageSettings.targetLanguage.code);
+    // 延遲一下讓用戶看到翻譯結果
+    await Future.delayed(Duration(milliseconds: 800));
 
-      print('Translation result: "$translatedText"');
+    // 步驟4: 開始語音播放
+    state = state.copyWith(
+      mode: TranslationMode.speaking,
+      subState: TranslationSubState.speaking,
+      statusMessage: '🔊 正在播放$targetLanguage語音...',
+    );
 
-      // Speak in target language
-      state = state.copyWith(
-        translatedText: translatedText,
-        mode: TranslationMode.speaking,
-      );
+    print('Speaking translation in $targetLanguage...');
+    await _speakText(translatedText, targetLanguageCode);
 
-      print(
-          'Speaking translation in ${languageSettings.targetLanguage.name}...');
-      await _speakText(translatedText, languageSettings.targetLanguage.code);
-    }
-
-    // Add to conversation history
+    // 步驟5: 完成並回到待機狀態
     final newItem = ConversationItem(
       role: state.currentRole,
       originalText: recognizedText,
@@ -221,9 +249,17 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
     state = state.copyWith(
       conversationHistory: [...state.conversationHistory, newItem],
       mode: TranslationMode.idle,
+      subState: null,
+      statusMessage: '✅ 翻譯完成',
     );
 
     print('=== TRANSLATION COMPLETE ===');
+
+    // 延遲一下顯示完成狀態，然後清除狀態消息
+    await Future.delayed(Duration(milliseconds: 1500));
+    if (state.mode == TranslationMode.idle) {
+      state = state.copyWith(statusMessage: '');
+    }
   }
 
   Future<void> startListeningForOther() async {
@@ -241,6 +277,37 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
     print(
         'Will translate to: ${languageSettings.nativeLanguage.name} (${languageSettings.nativeLanguage.code})');
 
+    // Check available locales first
+    final availableLocales = await _audioService.availableLocales;
+    print('Available speech locales: $availableLocales');
+
+    String targetLocale = languageSettings.targetLocaleId;
+
+    // If Japanese is not available, try alternatives
+    if (!availableLocales.contains(targetLocale)) {
+      print(
+          'Target locale $targetLocale not available, checking alternatives...');
+
+      // Try common Japanese locale variations
+      final japaneseAlternatives = ['ja-JP', 'ja', 'ja_JP'];
+      String? foundLocale;
+
+      for (final alt in japaneseAlternatives) {
+        if (availableLocales.contains(alt)) {
+          foundLocale = alt;
+          break;
+        }
+      }
+
+      if (foundLocale != null) {
+        targetLocale = foundLocale;
+        print('Using alternative Japanese locale: $targetLocale');
+      } else {
+        print('No Japanese locale found, falling back to Chinese: zh-TW');
+        targetLocale = 'zh-TW'; // Fallback to Chinese for testing
+      }
+    }
+
     state = state.copyWith(
       currentRole: ConversationRole.other,
       mode: TranslationMode.listening,
@@ -251,14 +318,13 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
     // Stop any current TTS
     await _ttsService.stop();
 
-    // Start listening for target language (should be Japanese)
+    // Start listening for target language
     await _audioService.startListening(
-      localeId: languageSettings.targetLocaleId,
+      localeId: targetLocale,
       partialResults: true,
     );
 
-    print(
-        'Started listening for ${languageSettings.targetLanguage.name} speech...');
+    print('Started listening for speech with locale: $targetLocale');
   }
 
   Future<void> startListeningForUser() async {

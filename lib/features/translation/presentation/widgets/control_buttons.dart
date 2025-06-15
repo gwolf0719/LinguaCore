@@ -42,54 +42,44 @@ class ControlButtons extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Main control buttons
-            Row(
-              children: [
-                // Listen to other person
-                Expanded(
-                  child: _buildControlButton(
-                    icon: Icons.person_outline,
-                    label: '聽對方說話',
-                    sublabel: '(${languageSettings.targetLanguage.name} → ${languageSettings.nativeLanguage.name})',
-                    color: const Color(0xFF4CAF50),
-                    isActive: currentMode == TranslationMode.listening && 
-                             currentRole == ConversationRole.other,
-                    onPressed: isInitialized && 
-                              currentMode != TranslationMode.speaking
-                        ? (currentMode == TranslationMode.listening && 
-                           currentRole == ConversationRole.other
-                           ? onStopListening
-                           : onStartListeningForOther)
-                        : null,
+            // 說明文字
+            Container(
+              padding: EdgeInsets.all(12.w),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8.r),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue,
+                    size: 16.sp,
                   ),
-                ),
-                
-                SizedBox(width: 16.w),
-                
-                // Listen to user
-                Expanded(
-                  child: _buildControlButton(
-                    icon: Icons.person,
-                    label: '我要說話',
-                    sublabel: '(${languageSettings.nativeLanguage.name} → ${languageSettings.targetLanguage.name})',
-                    color: const Color(0xFF2196F3),
-                    isActive: currentMode == TranslationMode.listening && 
-                             currentRole == ConversationRole.user,
-                    onPressed: isInitialized && 
-                              currentMode != TranslationMode.speaking
-                        ? (currentMode == TranslationMode.listening && 
-                           currentRole == ConversationRole.user
-                           ? onStopListening
-                           : onStartListeningForUser)
-                        : null,
+                  SizedBox(width: 8.w),
+                  Expanded(
+                    child: Text(
+                      '按住按鈕開始收音，放手後自動翻譯並播放中文',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+
+            SizedBox(height: 20.h),
+
+            // 主要控制按鈕 - 按住說話模式
+            _buildPushToTalkButton(languageSettings),
 
             SizedBox(height: 16.h),
 
-            // Stop speaking button (when TTS is active)
+            // 停止播放按鈕（當TTS活躍時）
             if (currentMode == TranslationMode.speaking)
               SizedBox(
                 width: double.infinity,
@@ -103,8 +93,8 @@ class ControlButtons extends ConsumerWidget {
                 ),
               ),
 
-            // Emergency stop button
-            if (currentMode != TranslationMode.idle && 
+            // 緊急停止按鈕
+            if (currentMode != TranslationMode.idle &&
                 currentMode != TranslationMode.speaking)
               SizedBox(
                 width: double.infinity,
@@ -120,7 +110,7 @@ class ControlButtons extends ConsumerWidget {
 
             SizedBox(height: 8.h),
 
-            // Status text
+            // 狀態文字
             Text(
               _getStatusText(),
               style: TextStyle(
@@ -133,6 +123,110 @@ class ControlButtons extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildPushToTalkButton(LanguageSettings languageSettings) {
+    final isRecording = currentMode == TranslationMode.listening;
+
+    return GestureDetector(
+      onTapDown: (_) {
+        // 按下時開始收音
+        if (isInitialized && currentMode != TranslationMode.speaking) {
+          onStartListeningForOther();
+        }
+      },
+      onTapUp: (_) {
+        // 放開時停止收音
+        if (isRecording) {
+          onStopListening();
+        }
+      },
+      onTapCancel: () {
+        // 取消時也停止收音
+        if (isRecording) {
+          onStopListening();
+        }
+      },
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        width: 200.w,
+        height: 200.h,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: _getButtonColor(),
+          boxShadow: isRecording
+              ? [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.4),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+          border: Border.all(
+            color: isRecording ? Colors.red : Colors.blue,
+            width: 3,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedScale(
+              duration: Duration(milliseconds: 200),
+              scale: isRecording ? 1.2 : 1.0,
+              child: Icon(
+                isRecording ? Icons.mic : Icons.mic_none,
+                color: Colors.white,
+                size: 60.sp,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              isRecording ? '正在收音...' : '按住開始',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 4.h),
+            Text(
+              '聽${languageSettings.targetLanguage.name}',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12.sp,
+              ),
+            ),
+            Text(
+              '↓ 翻譯成中文',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12.sp,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getButtonColor() {
+    switch (currentMode) {
+      case TranslationMode.listening:
+        return Colors.red.withOpacity(0.8);
+      case TranslationMode.translating:
+        return Colors.orange.withOpacity(0.8);
+      case TranslationMode.speaking:
+        return Colors.green.withOpacity(0.8);
+      default:
+        return Colors.blue.withOpacity(0.6);
+    }
   }
 
   Widget _buildControlButton({
@@ -151,12 +245,14 @@ class ControlButtons extends ConsumerWidget {
         child: Container(
           padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 12.w),
           decoration: BoxDecoration(
-            color: isActive 
+            color: isActive
                 ? color.withOpacity(0.2)
-                : (onPressed != null ? color.withOpacity(0.1) : Colors.grey[800]),
+                : (onPressed != null
+                    ? color.withOpacity(0.1)
+                    : Colors.grey[800]),
             borderRadius: BorderRadius.circular(16.r),
             border: Border.all(
-              color: isActive 
+              color: isActive
                   ? color
                   : (onPressed != null ? color.withOpacity(0.3) : Colors.grey),
               width: isActive ? 2 : 1,
@@ -167,7 +263,7 @@ class ControlButtons extends ConsumerWidget {
             children: [
               Icon(
                 icon,
-                color: onPressed != null 
+                color: onPressed != null
                     ? (isActive ? color : color.withOpacity(0.8))
                     : Colors.grey,
                 size: 32.sp,
@@ -187,9 +283,7 @@ class ControlButtons extends ConsumerWidget {
                 Text(
                   sublabel,
                   style: TextStyle(
-                    color: onPressed != null 
-                        ? Colors.white70 
-                        : Colors.grey,
+                    color: onPressed != null ? Colors.white70 : Colors.grey,
                     fontSize: 10.sp,
                   ),
                   textAlign: TextAlign.center,
@@ -209,14 +303,14 @@ class ControlButtons extends ConsumerWidget {
 
     switch (currentMode) {
       case TranslationMode.listening:
-        return '正在聆聽中... 點擊相同按鈕停止';
+        return '🎤 正在收音中，放開按鈕開始翻譯';
       case TranslationMode.translating:
-        return '正在翻譯中，請稍候...';
+        return '🔄 正在翻譯中...';
       case TranslationMode.speaking:
-        return '正在播放翻譯，點擊停止播放可中斷';
+        return '🔊 正在播放翻譯';
       case TranslationMode.idle:
       default:
-        return '選擇聆聽模式開始對話翻譯';
+        return '按住按鈕開始收音';
     }
   }
 }

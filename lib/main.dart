@@ -3,20 +3,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'core/services/service_locator.dart';
-import 'features/translation/presentation/screens/translation_screen.dart';
+import 'features/translation/presentation/screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize services
   await ServiceLocator.init();
-  
+
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  
+
   // Configure system UI
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -26,7 +26,7 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-  
+
   runApp(
     const ProviderScope(
       child: LinguaCoreApp(),
@@ -53,7 +53,7 @@ class LinguaCoreApp extends StatelessWidget {
             fontFamily: 'Roboto',
             useMaterial3: true,
           ),
-          home: const TranslationScreen(),
+          home: const SplashScreen(),
         );
       },
     );
