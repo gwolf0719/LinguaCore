@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'core/services/service_locator.dart';
 import 'features/translation/presentation/screens/splash_screen.dart';
+import 'features/translation/presentation/screens/real_time_translation_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,7 +54,7 @@ class LinguaCoreApp extends StatelessWidget {
             fontFamily: 'Roboto',
             useMaterial3: true,
           ),
-          home: const SplashScreen(),
+          home: const RealTimeTranslationScreen(),
         );
       },
     );

@@ -162,11 +162,18 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
 
   Future<void> _handleSpeechResult(String recognizedText) async {
     if (recognizedText.isEmpty) {
-      print('Received empty speech result');
+      print('⚠️ Received empty speech result');
       return;
     }
 
-    print('=== SPEECH RECOGNITION RESULT ===');
+    // 確保當前處於聽取模式或待機模式
+    if (state.mode != TranslationMode.listening &&
+        state.mode != TranslationMode.idle) {
+      print('⚠️ Speech result received but not in listening mode, ignoring');
+      return;
+    }
+
+    print('=== 🎯 SPEECH RECOGNITION RESULT ===');
     print('Recognized text: "$recognizedText"');
     final languageSettings = _ref.read(languageSettingsProvider);
     print(
@@ -264,67 +271,92 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
 
   Future<void> startListeningForOther() async {
     if (!state.isInitialized) {
-      print('Services not initialized yet, cannot start listening');
+      print('❌ Services not initialized yet, cannot start listening');
       return;
     }
 
-    final languageSettings = _ref.read(languageSettingsProvider);
-    print('Starting to listen for OTHER person...');
-    print(
-        'Language settings: native=${languageSettings.nativeLanguage.name} (${languageSettings.nativeLanguage.code}), target=${languageSettings.targetLanguage.name} (${languageSettings.targetLanguage.code})');
-    print(
-        'Will listen in: ${languageSettings.targetLanguage.name} (${languageSettings.targetLocaleId})');
-    print(
-        'Will translate to: ${languageSettings.nativeLanguage.name} (${languageSettings.nativeLanguage.code})');
+    // 檢查當前狀態，確保不會重複啟動
+    if (state.mode == TranslationMode.listening) {
+      print('❌ Already listening, ignoring duplicate start request');
+      return;
+    }
 
-    // Check available locales first
-    final availableLocales = await _audioService.availableLocales;
-    print('Available speech locales: $availableLocales');
+    try {
+      final languageSettings = _ref.read(languageSettingsProvider);
+      print('🎤 Starting to listen for OTHER person...');
+      print('Language settings: ${languageSettings.targetLanguage.name} → 中文');
 
-    String targetLocale = languageSettings.targetLocaleId;
+      // Check available locales first
+      final availableLocales = await _audioService.availableLocales;
+      print('Available speech locales: $availableLocales');
 
-    // If Japanese is not available, try alternatives
-    if (!availableLocales.contains(targetLocale)) {
-      print(
-          'Target locale $targetLocale not available, checking alternatives...');
+      String targetLocale = languageSettings.targetLocaleId;
 
-      // Try common Japanese locale variations
-      final japaneseAlternatives = ['ja-JP', 'ja', 'ja_JP'];
-      String? foundLocale;
+      // 檢查並選擇最佳語言
+      if (!availableLocales.contains(targetLocale)) {
+        print(
+            'Target locale $targetLocale not available, checking alternatives...');
 
-      for (final alt in japaneseAlternatives) {
-        if (availableLocales.contains(alt)) {
-          foundLocale = alt;
-          break;
+        // Try common Japanese locale variations
+        final japaneseAlternatives = ['ja-JP', 'ja', 'ja_JP'];
+        String? foundLocale;
+
+        for (final alt in japaneseAlternatives) {
+          if (availableLocales.contains(alt)) {
+            foundLocale = alt;
+            break;
+          }
+        }
+
+        if (foundLocale != null) {
+          targetLocale = foundLocale;
+          print('✅ Using alternative Japanese locale: $targetLocale');
+        } else {
+          print('⚠️ No Japanese locale found, falling back to Chinese: zh-TW');
+          targetLocale = 'zh-TW'; // Fallback to Chinese for testing
         }
       }
 
-      if (foundLocale != null) {
-        targetLocale = foundLocale;
-        print('Using alternative Japanese locale: $targetLocale');
-      } else {
-        print('No Japanese locale found, falling back to Chinese: zh-TW');
-        targetLocale = 'zh-TW'; // Fallback to Chinese for testing
+      // 更新狀態為聽取模式
+      state = state.copyWith(
+        currentRole: ConversationRole.other,
+        mode: TranslationMode.listening,
+        currentText: '',
+        translatedText: '',
+        statusMessage: '🎤 正在等待語音輸入...',
+      );
+
+      // Stop any current TTS
+      await _ttsService.stop();
+
+      // 檢查音頻服務狀態
+      if (!_audioService.isInitialized) {
+        print('❌ Audio service not initialized, reinitializing...');
+        await _audioService.initialize();
       }
+
+      // Start listening for target language
+      await _audioService.startListening(
+        localeId: targetLocale,
+        partialResults: true,
+      );
+
+      print('✅ Started listening for speech with locale: $targetLocale');
+    } catch (e) {
+      print('❌ Error starting listening: $e');
+      // 恢復到待機狀態
+      state = state.copyWith(
+        mode: TranslationMode.idle,
+        statusMessage: '啟動語音識別失敗，請重試',
+      );
+
+      // 清除錯誤訊息
+      Future.delayed(Duration(seconds: 2), () {
+        if (state.mode == TranslationMode.idle) {
+          state = state.copyWith(statusMessage: '');
+        }
+      });
     }
-
-    state = state.copyWith(
-      currentRole: ConversationRole.other,
-      mode: TranslationMode.listening,
-      currentText: '',
-      translatedText: '',
-    );
-
-    // Stop any current TTS
-    await _ttsService.stop();
-
-    // Start listening for target language
-    await _audioService.startListening(
-      localeId: targetLocale,
-      partialResults: true,
-    );
-
-    print('Started listening for speech with locale: $targetLocale');
   }
 
   Future<void> startListeningForUser() async {
@@ -350,8 +382,35 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
   }
 
   Future<void> stopListening() async {
-    await _audioService.stopListening();
-    state = state.copyWith(mode: TranslationMode.idle);
+    if (state.mode != TranslationMode.listening) {
+      print('⚠️ Not currently listening, ignoring stop request');
+      return;
+    }
+
+    try {
+      print('🛑 Stopping listening...');
+      await _audioService.stopListening();
+
+      // 檢查是否有識別到的語音
+      if (state.currentText.isEmpty) {
+        print('ℹ️ No speech detected, returning to idle');
+        state = state.copyWith(
+          mode: TranslationMode.idle,
+          statusMessage: '未檢測到語音，請重試',
+        );
+
+        // 清除訊息
+        Future.delayed(Duration(seconds: 2), () {
+          if (state.mode == TranslationMode.idle) {
+            state = state.copyWith(statusMessage: '');
+          }
+        });
+      }
+      // 如果有語音文字，會由 _handleSpeechResult 處理翻譯
+    } catch (e) {
+      print('❌ Error stopping listening: $e');
+      state = state.copyWith(mode: TranslationMode.idle);
+    }
   }
 
   Future<void> stopSpeaking() async {

@@ -5,8 +5,10 @@ import '../providers/translation_provider.dart';
 import '../widgets/conversation_display.dart';
 import '../widgets/control_buttons.dart';
 import '../widgets/status_indicator.dart';
+import '../widgets/debug_panel.dart';
 import '../../../settings/presentation/screens/language_settings_screen.dart';
 import '../../../settings/presentation/providers/language_settings_provider.dart';
+import 'real_time_translation_screen.dart';
 
 class TranslationScreen extends ConsumerWidget {
   const TranslationScreen({super.key});
@@ -43,6 +45,17 @@ class TranslationScreen extends ConsumerWidget {
         elevation: 0,
         actions: [
           IconButton(
+            icon: const Icon(Icons.live_tv, color: Colors.orange),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const RealTimeTranslationScreen(),
+                ),
+              );
+            },
+            tooltip: '🚀 極速實時翻譯',
+          ),
+          IconButton(
             icon: const Icon(Icons.settings, color: Colors.white),
             onPressed: () {
               Navigator.of(context).push(
@@ -59,6 +72,18 @@ class TranslationScreen extends ConsumerWidget {
               ref.read(translationProvider.notifier).clearHistory();
             },
             tooltip: '清除記錄',
+          ),
+          IconButton(
+            icon: const Icon(Icons.bug_report, color: Colors.orange),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => Dialog(
+                  child: const DebugPanel(),
+                ),
+              );
+            },
+            tooltip: '調試資訊',
           ),
         ],
       ),

@@ -127,23 +127,30 @@ class ControlButtons extends ConsumerWidget {
 
   Widget _buildPushToTalkButton(LanguageSettings languageSettings) {
     final isRecording = currentMode == TranslationMode.listening;
+    final canStart = isInitialized && currentMode == TranslationMode.idle;
 
     return GestureDetector(
       onTapDown: (_) {
         // 按下時開始收音
-        if (isInitialized && currentMode != TranslationMode.speaking) {
+        if (canStart) {
+          print('按鈕按下 - 開始收音');
           onStartListeningForOther();
+        } else {
+          print(
+              '無法開始收音 - isInitialized: $isInitialized, currentMode: $currentMode');
         }
       },
       onTapUp: (_) {
         // 放開時停止收音
         if (isRecording) {
+          print('按鈕放開 - 停止收音');
           onStopListening();
         }
       },
       onTapCancel: () {
         // 取消時也停止收音
         if (isRecording) {
+          print('按鈕取消 - 停止收音');
           onStopListening();
         }
       },
